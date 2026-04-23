@@ -15,7 +15,7 @@ const pool = mysql.createPool({
   queueLimit: 0
 });
 
-// 可选：编写一个测试连接的函数，方便排查问题
+// 编写一个测试连接的函数，方便排查问题
 async function testConnection() {
   try {
     const connection = await pool.getConnection();
