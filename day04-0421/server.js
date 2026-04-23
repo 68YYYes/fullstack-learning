@@ -2,6 +2,15 @@ const express = require('express');
 const app = express();
 const PORT = 3000;
 
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 // --- 中间件配置 ---
 // 解析 JSON 格式的请求体（必须！否则 req.body 是 undefined）
 app.use(express.json());
