@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const router = express.Router();
 const db = require('../db');
 require('dotenv').config();
+const authenticate = require('../middleware/auth');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '2h';
@@ -70,6 +71,15 @@ router.post('/login', async (req, res) => {
     console.error(err);
     res.status(500).json({ message: '服务器错误' });
   }
+});
+
+// 受保护的接口：获取当前用户信息
+router.get('/me', authenticate, (req, res) => {
+  // 通过中间件后，req.user 已经包含了 userId 和 username
+  res.json({
+    message: '你已成功访问受保护资源',
+    user: req.user
+  });
 });
 
 module.exports = router;
