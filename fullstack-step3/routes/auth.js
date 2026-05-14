@@ -73,13 +73,27 @@ router.post('/login', async (req, res) => {
   }
 });
 
-// 受保护的接口：获取当前用户信息
-router.get('/me', authenticate, (req, res) => {
-  // 通过中间件后，req.user 已经包含了 userId 和 username
-  res.json({
-    message: '你已成功访问受保护资源',
-    user: req.user
-  });
+/// ==================== 受保护的个人信息 ====================
+router.get('/me', authenticate, async (req, res) => {
+  try {
+    const [rows] = await db.query(
+      'SELECT id, username, created_at FROM users WHERE id = ?',
+      [req.user.userId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ message: '用户不存在' });
+    }
+    const user = rows[0];
+    res.json({
+      message: '这是你的个人信息',
+      userId: user.id,
+      username: user.username,
+      createdAt: user.created_at
+    });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: '服务器错误' });
+  }
 });
 
 module.exports = router;

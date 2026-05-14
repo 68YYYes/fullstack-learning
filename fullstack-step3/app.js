@@ -1,7 +1,7 @@
 // app.js
+require('dotenv').config();// 必须在最顶部加载
 const express = require('express');
 const cors = require('cors');          // 引入 cors
-require('dotenv').config();
 
 const authRoutes = require('./routes/auth');
 
