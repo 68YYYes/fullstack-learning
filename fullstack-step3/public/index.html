@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>用户中心 - 前后端对接演示</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #f5f5f5;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .container {
+      background: white;
+      padding: 40px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+      width: 400px;
+      max-width: 90%;
+    }
+    h1 { text-align: center; color: #333; margin-bottom: 30px; }
+    .form-group { margin-bottom: 20px; }
+    label { display: block; margin-bottom: 6px; color: #555; font-weight: 500; }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    input:focus { outline: none; border-color: #4a90d9; }
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #4a90d9;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover { background: #357abd; }
+    .status-message {
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 20px;
+      text-align: center;
+    }
+    .error { background: #ffe0e0; color: #c00; }
+    .success { background: #e0ffe0; color: #060; }
+    .info { background: #e0e8ff; color: #336; }
+    .user-card {
+      background: #f9f9f9;
+      padding: 20px;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .user-card h2 { color: #333; margin-bottom: 10px; }
+    .user-card p { color: #666; margin-bottom: 5px; }
+    .hidden { display: none !important; }
+    .tabs {
+      display: flex;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #eee;
+    }
+    .tab {
+      flex: 1;
+      text-align: center;
+      padding: 10px;
+      cursor: pointer;
+      color: #888;
+      border-bottom: 2px solid transparent;
+      margin-bottom: -2px;
+      transition: all 0.3s;
+    }
+    .tab.active { color: #4a90d9; border-bottom-color: #4a90d9; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 用户中心</h1>
+
+    <!-- 标签切换 -->
+    <div class="tabs">
+      <div class="tab active" data-tab="login">登录</div>
+      <div class="tab" data-tab="register">注册</div>
+      <div class="tab" data-tab="profile">个人中心</div>
+    </div>
+
+    <!-- 状态消息 -->
+    <div id="statusMessage" class="status-message hidden"></div>
+
+    <!-- 登录表单 -->
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="loginUsername">用户名</label>
+        <input type="text" id="loginUsername" placeholder="请输入用户名" required>
+      </div>
+      <div class="form-group">
+        <label for="loginPassword">密码</label>
+        <input type="password" id="loginPassword" placeholder="请输入密码" required>
+      </div>
+      <button type="submit">登 录</button>
+    </form>
+
+    <!-- 注册表单 -->
+    <form id="registerForm" class="hidden">
+      <div class="form-group">
+        <label for="regUsername">用户名</label>
+        <input type="text" id="regUsername" placeholder="请输入用户名" required>
+      </div>
+      <div class="form-group">
+        <label for="regPassword">密码</label>
+        <input type="password" id="regPassword" placeholder="请输入密码" required>
+      </div>
+      <button type="submit">注 册</button>
+    </form>
+
+    <!-- 个人中心 -->
+    <div id="profileSection" class="hidden">
+      <div id="profileLoading" class="status-message info">加载中...</div>
+      <div id="profileContent" class="user-card hidden">
+        <h2>欢迎，<span id="displayUsername"></span>！</h2>
+        <p>用户 ID：<span id="displayUserId"></span></p>
+        <p>注册时间：<span id="displayCreatedAt"></span></p>
+      </div>
+      <div id="profileError" class="status-message error hidden"></div>
+      <button onclick="logout()" style="margin-top: 20px; background: #e74c3c;">退出登录</button>
+    </div>
+  </div>
+
+  <script>
+    // ==================== 配置 ====================
+    const API_BASE = 'http://localhost:3000/api';
+
+    // ==================== 工具函数 ====================
+    function showMessage(message, type) {
+      const el = document.getElementById('statusMessage');
+      el.textContent = message;
+      el.className = `status-message ${type}`;
+      el.classList.remove('hidden');
+    }
+
+    function hideMessage() {
+      document.getElementById('statusMessage').classList.add('hidden');
+    }
+
+    function getToken() {
+      return localStorage.getItem('token');
+    }
+
+    function setToken(token) {
+      localStorage.setItem('token', token);
+    }
+
+    function clearToken() {
+      localStorage.removeItem('token');
+    }
+
+    function setUserInfo(user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    }
+
+    function getUserInfo() {
+      const user = localStorage.getItem('user');
+      return user ? JSON.parse(user) : null;
+    }
+
+    function clearUserInfo() {
+      localStorage.removeItem('user');
+    }
+
+    // ==================== 标签切换 ====================
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', function() {
+        // 更新 tab 样式
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        this.classList.add('active');
+
+        // 隐藏所有面板
+        document.getElementById('loginForm').classList.add('hidden');
+        document.getElementById('registerForm').classList.add('hidden');
+        document.getElementById('profileSection').classList.add('hidden');
+        hideMessage();
+
+        // 显示对应面板
+        const tabName = this.dataset.tab;
+        if (tabName === 'login') {
+          document.getElementById('loginForm').classList.remove('hidden');
+        } else if (tabName === 'register') {
+          document.getElementById('registerForm').classList.remove('hidden');
+        } else if (tabName === 'profile') {
+          document.getElementById('profileSection').classList.remove('hidden');
+          // 如果用户已登录，自动加载信息
+          if (getToken()) {
+            fetchUserProfile();
+          } else {
+            document.getElementById('profileLoading').classList.add('hidden');
+            document.getElementById('profileError').textContent = '请先登录';
+            document.getElementById('profileError').classList.remove('hidden');
+          }
+        }
+      });
+    });
+
+    // ==================== 注册 ====================
+    document.getElementById('registerForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const username = document.getElementById('regUsername').value.trim();
+      const password = document.getElementById('regPassword').value.trim();
+
+      if (!username || !password) {
+        showMessage('请填写所有字段', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          showMessage('注册成功！请切换到登录页面进行登录', 'success');
+          document.getElementById('regUsername').value = '';
+          document.getElementById('regPassword').value = '';
+        } else {
+          showMessage(data.message || '注册失败', 'error');
+        }
+      } catch (error) {
+        showMessage('网络错误，请确认后端已启动', 'error');
+      }
+    });
+
+    // ==================== 登录 ====================
+    document.getElementById('loginForm').addEventListener('submit', async function(e) {
+      e.preventDefault();
+      const username = document.getElementById('loginUsername').value.trim();
+      const password = document.getElementById('loginPassword').value.trim();
+
+      if (!username || !password) {
+        showMessage('请填写所有字段', 'error');
+        return;
+      }
+
+      try {
+        const response = await fetch(`${API_BASE}/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // 存储 token 和用户信息
+          setToken(data.token);
+          setUserInfo(data.user);
+
+          showMessage('登录成功！', 'success');
+
+          // 自动切换到个人中心
+          setTimeout(() => {
+            document.querySelector('[data-tab="profile"]').click();
+          }, 500);
+        } else {
+          showMessage(data.message || '登录失败', 'error');
+        }
+      } catch (error) {
+        showMessage('网络错误，请确认后端已启动', 'error');
+      }
+    });
+
+    // ==================== 获取用户信息（带 token） ====================
+    async function fetchUserProfile() {
+      const token = getToken();
+
+      if (!token) {
+        document.getElementById('profileLoading').classList.add('hidden');
+        document.getElementById('profileError').textContent = '请先登录';
+        document.getElementById('profileError').classList.remove('hidden');
+        return;
+      }
+
+      // 显示 loading
+      document.getElementById('profileLoading').classList.remove('hidden');
+      document.getElementById('profileContent').classList.add('hidden');
+      document.getElementById('profileError').classList.add('hidden');
+
+      try {
+        const response = await fetch(`${API_BASE}/me`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // 隐藏 loading，显示用户信息
+          document.getElementById('profileLoading').classList.add('hidden');
+          document.getElementById('profileContent').classList.remove('hidden');
+
+          document.getElementById('displayUsername').textContent = data.username;
+          document.getElementById('displayUserId').textContent = data.userId;
+          document.getElementById('displayCreatedAt').textContent =
+            data.createdAt ? new Date(data.createdAt).toLocaleString() : '未知';
+        } else {
+          // token 无效或过期
+          document.getElementById('profileLoading').classList.add('hidden');
+          document.getElementById('profileError').textContent = data.message || '获取信息失败';
+          document.getElementById('profileError').classList.remove('hidden');
+
+          // 如果是认证问题，清除本地存储
+          if (response.status === 401) {
+            clearToken();
+            clearUserInfo();
+          }
+        }
+      } catch (error) {
+        document.getElementById('profileLoading').classList.add('hidden');
+        document.getElementById('profileError').textContent =
+          '网络错误：' + error.message + '（请确认后端已启动）';
+        document.getElementById('profileError').classList.remove('hidden');
+      }
+    }
+
+    // ==================== 退出登录 ====================
+    function logout() {
+      clearToken();
+      clearUserInfo();
+      showMessage('已退出登录', 'info');
+      // 切换到登录页
+      setTimeout(() => {
+        document.querySelector('[data-tab="login"]').click();
+      }, 500);
+    }
+
+    // ==================== 初始化 ====================
+    // 检查用户是否已登录，自动跳转到个人中心
+    if (getToken()) {
+      document.querySelector('[data-tab="profile"]').classList.add('active');
+      document.querySelector('[data-tab="login"]').classList.remove('active');
+      document.getElementById('loginForm').classList.add('hidden');
+      document.getElementById('registerForm').classList.add('hidden');
+      document.getElementById('profileSection').classList.remove('hidden');
+      fetchUserProfile();
+    }
+  </script>
+</body>
+</html>
